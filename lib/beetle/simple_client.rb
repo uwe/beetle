@@ -1,9 +1,9 @@
 module Beetle
-  # raised when two redis master servers are found
+  # raised when a handler is tried to access which doesn't exist
   class UnknownHandlerError < Error; end
 
   class SimpleClient < Client
-    private :register_binding, :register_queue
+    private :register_binding, :register_queue, :register_exchange
 
     def register_message(message_name, options={})
       options.assert_valid_keys(:group)
@@ -15,7 +15,8 @@ module Beetle
     def register_handler(handler, *messages_to_listen, &block)
       raise ArgumentError.new("Either a handler class or a block (in case of a named handler) must be given") if handler.is_a?(String) && !block_given?
       queue = queue_name_from_handler(handler)
-      queue_opts = messages_to_listen.last.is_a?(Hash) ? messages_to_listen.pop : {}
+      handler_opts = messages_to_listen.last.is_a?(Hash) ? messages_to_listen.pop : {}
+      queue_opts = handler_opts.slice!(:errback, :failback)
 
       begin
         register_queue queue, queue_opts
@@ -29,9 +30,9 @@ module Beetle
       end
 
       if handler.is_a?(Class)
-        super(queue, handler)
+        super(queue, handler, handler_opts)
       else
-        super(queue, {}, &block)
+        super(queue, handler_opts, &block)
       end
     end
     
