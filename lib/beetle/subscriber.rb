@@ -1,6 +1,7 @@
 module Beetle
   # Manages subscriptions and message processing on the receiver side of things.
   class Subscriber < Base
+    attr_reader :handlers
 
     # create a new subscriber instance
     def initialize(client, options = {}) #:nodoc:
