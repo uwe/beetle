@@ -3,11 +3,13 @@ require File.expand_path("../lib/beetle", File.dirname(__FILE__))
 
 # set Beetle log level to info, less noisy than debug
 Beetle.config.logger.level = Logger::INFO
+Beetle.config.servers = "localhost:5672, localhost:5673"
 
 # setup client
 client = Beetle::SimpleClient.new
 client.register_message(:a_message)
-client.register_message(:another_message)
+# passing options to messages still works
+client.register_message(:another_message, :redundant => true)
 client.register_message(:unimportant_message)
 client.register_handler("greedy handler", :a_message, :another_message, :unimportant_message) {|message| puts "greedy handler got message: #{message.data}"}
 client.register_handler("modest handler", :a_message) {|message| puts "modest handler got message: #{message.data}"}

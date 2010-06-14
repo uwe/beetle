@@ -22,9 +22,15 @@ module Beetle
     end
 
     test "should only allow a subset of the regular clients message params" do
+      @client.register_message(:some_message1, :redundant => true)
+
       assert_raises ArgumentError do
-        @client.register_message(:some_message, :key => "some_key")
+        @client.register_message(:some_message2, :exchange => :foobar)
       end
+      assert_raises ArgumentError do
+        @client.register_message(:some_message3, :key => "some_key")
+      end
+
     end
   end
 
@@ -74,8 +80,8 @@ module Beetle
     test "should bind the handler to every message specified" do
       @client.register_message(:my_other_message)
       @client.register_handler(MyHandler, :my_message, :my_other_message)
-      assert @client.handler(MyHandler).bound_to?(:my_message)
-      assert @client.handler(MyHandler).bound_to?(:my_other_message)
+      assert @client.handler(MyHandler).listens_to?(:my_message)
+      assert @client.handler(MyHandler).listens_to?(:my_other_message)
     end
 
     test "should allow to set a errback and a failback callback" do
@@ -84,6 +90,24 @@ module Beetle
       @client.register_handler(MyHandler, :my_message, :errback => errback, :failback => failback)
       assert_equal errback, @client.send(:subscriber).handlers["my_handler"][0][:errback]
       assert_equal failback, @client.send(:subscriber).handlers["my_handler"][0][:failback]
+    end
+    
+    test "should allow to listen to a group of messages" do
+      @client.register_message(:message_1_of_group, :group => :testgroup)
+      @client.register_message(:message_2_of_group, :group => :testgroup)
+      @client.register_handler("group handler", :group => :testgroup) {}
+      @client.register_handler("hybrid handler", :my_message, :group => :testgroup) {}
+
+      assert @client.handler("group handler").listens_to?(:message_1_of_group)
+      assert @client.handler("group handler").listens_to?(:message_2_of_group)
+
+      assert @client.handler("hybrid handler").listens_to?(:message_1_of_group)
+      assert @client.handler("hybrid handler").listens_to?(:message_2_of_group)
+      assert @client.handler("hybrid handler").listens_to?(:my_other_message)
+    end
+
+    test "should not allow to bind to messages that aren't defined" do
+      flunk
     end
   end
 end
