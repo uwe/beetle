@@ -11,6 +11,7 @@ module Beetle
       options.assert_valid_keys(:group, :redundant)
       group = options.delete(:group)
       options[:key] = "#{group}.#{message_name}" if group
+      options[:exchange] = "beetle"
       super
     end
 
@@ -19,22 +20,24 @@ module Beetle
       raise ArgumentError.new("Either a handler class or a block (in case of a named handler) must be given") if handler.is_a?(String) && !block_given?
       queue = queue_name_from_handler(handler)
       handler_opts = messages_to_listen.last.is_a?(Hash) ? messages_to_listen.pop : {}
-      queue_opts = handler_opts.slice!(:errback, :failback, :group)
+      queue_opts = handler_opts.slice!(:errback, :failback, :groups)
 
       begin
-        register_queue queue, queue_opts
+        register_queue queue, queue_opts.merge({:exchange => 'beetle'})
       rescue ConfigurationError
         raise ConfigurationError.new("Handler names must be unique")
       end
 
       messages_to_listen.each do |message_name|
         message = messages[message_name.to_s]
-        register_binding queue, :key => message[:key], :exchange => message[:exchange]
+        register_binding queue, :key => message[:key], :exchange => "beetle"
       end
 
-      if group = handler_opts.delete(:group)
-        raise ConfigurationError.new("no messages for group #{group} specified") unless messages.any? {|_, opts| opts[:key] =~ /^#{group}\./}
-        register_binding queue, :key => "#{group}.#", :exchange => messages[:exchange]
+      if groups = handler_opts.delete(:groups)
+        Array(groups).each do |group|
+          raise ConfigurationError.new("no messages for group #{group} specified") unless messages.any? {|_, opts| opts[:key] =~ /^#{group}\./}
+          register_binding queue, :key => "#{group}.#", :exchange => "beetle"
+        end
       end
 
       if handler.is_a?(Class)
@@ -68,17 +71,18 @@ module Beetle
         @name = handler_name
       end
 
-      def listens_to?(message)
-        message = @client.messages[message.to_s]
+      def listens_to?(message_name)
+        message = @client.messages[message_name.to_s]
         @client.bindings[@name].any? do |binding|
-          same_exchange = binding[:exchange] == message[:exchange]
-          key_matches = if binding[:key] =~ /(.+)\.\#$/
-                          group = $1
-                          !!message[:key] =~ /^#{group}\./
-                        else
-                          binding[:key] == message[:key]
-                        end
-          key_matches && same_exchange
+        raise ConfigurationError.new("Message #{message_name} not defined") unless message
+        same_exchange = binding[:exchange] == message[:exchange]
+        key_matches = if binding[:key] =~ /(.+)\.\#$/
+                        group = $1
+                        !!(message[:key] =~ /^#{group}\..+/)
+                      else
+                        binding[:key] == message[:key]
+                      end
+        key_matches && same_exchange
         end
       end
     end
