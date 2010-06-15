@@ -113,9 +113,16 @@ module Beetle
     end
 
     test "should not allow to bind to messages that aren't defined" do
+      assert_raises ConfigurationError do
+        @client.register_handler("boogus handler", :some_strange_message_ive_never_seen_before){}
+      end
     end
     
     test "should not allow messages with the same name as handlers" do      
+      @client.register_message(:foo_bar)
+      assert_raises ConfigurationError do
+        @client.register_handler("foo bar", :my_message){}
+      end
     end
   end
 end

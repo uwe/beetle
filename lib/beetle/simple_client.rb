@@ -19,6 +19,7 @@ module Beetle
     def register_handler(handler, *messages_to_listen, &block)
       raise ArgumentError.new("Either a handler class or a block (in case of a named handler) must be given") if handler.is_a?(String) && !block_given?
       queue = queue_name_from_handler(handler)
+      raise ConfigurationError.new("Handler name #{queue} collides with a message") if messages[queue]
       handler_opts = messages_to_listen.last.is_a?(Hash) ? messages_to_listen.pop : {}
       queue_opts = handler_opts.slice!(:errback, :failback, :groups)
 
@@ -30,6 +31,7 @@ module Beetle
 
       messages_to_listen.each do |message_name|
         message = messages[message_name.to_s]
+        raise ConfigurationError.new("Message #{message_name} is undefined") unless message
         register_binding queue, :key => message[:key], :exchange => "beetle"
       end
 
