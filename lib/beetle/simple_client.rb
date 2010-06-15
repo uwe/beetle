@@ -64,7 +64,7 @@ module Beetle
 
     private
     def queue_name_from_handler(handler)
-      handler.is_a?(Class) ? handler.name.underscore.gsub('/', '.') : handler.gsub(' ', '_').underscore
+      handler.is_a?(Class) ? handler.name.underscore.gsub('/', '.') : handler.to_s.gsub(' ', '_').underscore
     end
     
     class SimpleHandler # nodoc

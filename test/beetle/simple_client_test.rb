@@ -50,8 +50,14 @@ module Beetle
 
     test "should accept a string" do
       my_handler = lambda {}
-      @client.register_handler("my handler", :my_message, &my_handler)
-      assert_equal my_handler, @client.send(:subscriber).handlers["my_handler"][1]
+      @client.register_handler("my string handler", :my_message, &my_handler)
+      assert_equal my_handler, @client.send(:subscriber).handlers["my_string_handler"][1]
+    end
+
+    test "should accept a symbol" do
+      my_handler = lambda {}
+      @client.register_handler(:my_symbol_handler, :my_message, &my_handler)
+      assert_equal my_handler, @client.send(:subscriber).handlers["my_symbol_handler"][1]      
     end
 
     test "should require a block if a string is provided as a handler" do
