@@ -144,8 +144,7 @@ module Beetle
           m = Message.new(amqp_queue_name, header, data, message_options)
           result = m.process(processor)
           if result.reject?
-            sleep 1
-            header.reject(:requeue => true)
+            header.reject(:requeue => false)
           elsif reply_to = header.attributes[:reply_to]
             # logger.info "Beetle: sending reply to queue #{reply_to}"
             # require 'ruby-debug'
@@ -176,7 +175,10 @@ module Beetle
     end
 
     def bind_queue!(queue_name, creation_keys, exchange_name, binding_keys)
-      queue = channel.queue(queue_name, creation_keys)
+      dlqn, dlqa, qa = queue_args(queue_name)
+      
+      channel.queue(dlqn, creation_keys.merge(:arguments => dlqa))
+      queue = channel.queue(queue_name, creation_keys.merge(:arguments => qa))
       exchange = exchange(exchange_name)
       queue.bind(exchange, binding_keys)
       queue

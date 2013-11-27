@@ -53,10 +53,14 @@ module Beetle
       @queues[@server] ||= {}
     end
 
+    def queue_options(name)
+      @client.queues[name]
+    end
+
     def queue(name)
       queues[name] ||=
         begin
-          opts = @client.queues[name]
+          opts = queue_options(name)
           raise UnknownQueue.new("You are trying to bind a queue #{name} which is not configured!") unless opts
           logger.debug("Beetle: binding queue #{name} with internal name #{opts[:amqp_name]} on server #{@server}")
           queue_name = opts[:amqp_name]
@@ -71,5 +75,18 @@ module Beetle
         end
     end
 
+    def queue_args(name)
+      dead_letter_queue_name = "#{name}-retries"
+      dead_letter_args = {
+        :'x-dead-letter-exchange' => '',
+        :'x-dead-letter-routing-key' => name,
+        :'x-message-ttl' => queue_options(name)[:retry_delay] * 1000
+      }
+      queue_args = {
+        :'x-dead-letter-exchange' => '',
+        :'x-dead-letter-routing-key' => dead_letter_queue_name
+      }
+      [dead_letter_queue_name, dead_letter_args, queue_args]
+    end
   end
 end

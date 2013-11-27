@@ -15,11 +15,13 @@ Beetle.config.logger.level = Logger::INFO
 
 # setup client
 $client = Beetle::Client.new
-$client.register_queue(:test)
-$client.register_message(:test)
+$client.configure :key => "my.test.message" do
+  message(:test)
+  queue(:test, :retry_delay => 5.seconds)
+end
 
 # purge the test queue
-$client.purge(:test)
+# $client.purge(:test)
 
 # empty the dedup store
 $client.deduplication_store.flushdb
@@ -35,6 +37,8 @@ class Handler < Beetle::Handler
 
   # called when the handler receives the message - fail everytime
   def process
+    death = message.header.attributes[:headers]["x-death"]
+    puts death.map(&:inspect).join("\n") if death
     raise "failed #{$exceptions += 1} times"
   end
 
@@ -52,7 +56,9 @@ class Handler < Beetle::Handler
 end
 
 # register our handler to the message, configure it to our max_exceptions limit, we configure a delay of 0 to have it not wait before retrying
-$client.register_handler(:test, Handler, :exceptions => $max_exceptions, :delay => 0)
+$client.configure do
+  handler :test, Handler, :exceptions => $max_exceptions, :delay => 0
+end
 
 # publish a our test message
 $client.publish(:test, "snafu")
