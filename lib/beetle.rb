@@ -5,28 +5,14 @@ require 'qrack/errors'             # needed by the publisher
 require 'uuid4r'
 require 'redis/connection/hiredis' # require *before* redis as specified in the redis-rb gem docs
 require 'redis'
-require 'active_support'
-require 'active_support/core_ext'
+require 'active_support/all'
 require 'set'
 require 'socket'
 require 'beetle/version'
 
 module Beetle
-  #:nocov:
-  Timer = if RUBY_VERSION < "1.9"
-            begin
-              require 'system_timer'
-              SystemTimer
-            rescue Exception
-              warn "WARNING: It's highly recommended to install the SystemTimer gem: `gem install SystemTimer -v '=1.2.1'` See: http://ph7spot.com/musings/system-timer" if RUBY_VERSION < "1.9"
-              require 'timeout'
-              Timeout
-            end
-          else
-            require 'timeout'
-            Timeout
-          end
-  #:nocov:
+  require 'timeout'
+  Timer = Timeout
 
   # abstract superclass for Beetle specific exceptions
   class Error < StandardError; end
@@ -48,7 +34,7 @@ module Beetle
   # AMQP options for queue bindings
   QUEUE_BINDING_KEYS      = [:key, :no_wait]
   # AMQP options for message publishing
-  PUBLISHING_KEYS         = [:key, :mandatory, :immediate, :persistent, :reply_to]
+  PUBLISHING_KEYS         = [:key, :mandatory, :immediate, :persistent, :reply_to, :headers]
   # AMQP options for subscribing to queues
   SUBSCRIPTION_KEYS       = [:ack, :key]
 

@@ -57,7 +57,7 @@ module Beetle
         logger.warn "no slave available, falling back to master."
         connection = redis
       end
-      file = "/tmp/beetle_redis_expire_keys_#{$$}.txt"
+      file = "#{@config.tmpdir}/beetle_redis_expire_keys_#{$$}.txt"
       cmd = "redis-cli -h #{connection.host} -p #{connection.port} -n #{@config.redis_db} keys 'msgid:*:expires' > #{file}"
       logger.info "retrieving expire keys: '#{cmd}'"
       if system(cmd)
@@ -74,7 +74,7 @@ module Beetle
     # garbage collect keys in Redis (always assume the worst!)
     def garbage_collect_keys(now = Time.now.to_i)
       keys = redis.keys("msgid:*:expires")
-      threshold = now + @config.gc_threshold
+      threshold = now - @config.gc_threshold
       keys.each do |key|
         gc_key(key, threshold)
       end
@@ -82,7 +82,7 @@ module Beetle
 
     # garbage collect keys from a given file
     def garbage_collect_keys_from_file(file_name, now = Time.now.to_i)
-      threshold = now + @config.gc_threshold
+      threshold = now - @config.gc_threshold
       expired = total = 0
       File.foreach(file_name) do |line|
         line.chomp!
@@ -104,7 +104,7 @@ module Beetle
           redis.del(*keys(msg_id))
           return true
         else
-          # keys has future expiry date
+          # key has future expiry date
           # puts "#{msg_id} expires on #{Time.at(expires_at.to_i)}"
           return false
         end

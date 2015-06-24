@@ -1,4 +1,5 @@
 require 'erb'
+require 'yaml'
 
 module Beetle
   class Configuration
@@ -8,7 +9,7 @@ module Beetle
     attr_accessor :logger
     # defaults to <tt>STDOUT</tt>
     attr_accessor :log_file
-    # number of seconds after which keys are removed form the message deduplication store (defaults to <tt>3.days</tt>)
+    # number of seconds after which keys are removed from the message deduplication store (defaults to <tt>1.hour</tt>)
     attr_accessor :gc_threshold
     # the redis server to use for deduplication
     # either a string like <tt>"localhost:6379"</tt> (default) or a file that contains the string.
@@ -51,8 +52,19 @@ module Beetle
     # consider this a highly experimental feature for now.
     attr_accessor :publishing_timeout
 
+    # directory to store large intermediate files (defaults '/tmp')
+    attr_accessor :tmpdir
+
     # external config file (defaults to <tt>no file</tt>)
     attr_reader :config_file
+
+    # returns the configured amqp brokers
+    def brokers
+      {
+        'servers' => self.servers,
+        'additional_subscription_servers' => self.additional_subscription_servers
+      }
+    end
 
     def initialize #:nodoc:
       self.system_name = "system"
@@ -75,6 +87,7 @@ module Beetle
       self.password = "guest"
 
       self.publishing_timeout = 0
+      self.tmpdir = "/tmp"
 
       self.log_file = STDOUT
     end
@@ -83,6 +96,12 @@ module Beetle
     def config_file=(file_name) #:nodoc:
       @config_file = file_name
       load_config
+    end
+
+    # reloads the configuration from the configuration file
+    # if one is configured
+    def reload
+      load_config if @config_file
     end
 
     def logger
@@ -98,7 +117,12 @@ module Beetle
 
     private
     def load_config
-      hash = YAML::load(ERB.new(IO.read(config_file)).result)
+      raw = ERB.new(IO.read(config_file)).result
+      hash = if config_file =~ /\.json$/
+               JSON.parse(raw)
+             else
+               YAML.load(raw)
+             end
       hash.each do |key, value|
         send("#{key}=", value)
       end
