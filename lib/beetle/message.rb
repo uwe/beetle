@@ -92,13 +92,20 @@ module Beetle
       expires_at = now + (opts[:ttl] || DEFAULT_TTL)
       opts = opts.slice(*PUBLISHING_KEYS)
       opts[:message_id] = generate_uuid.to_s
-      opts[:headers] = {
+      headers = (opts[:headers] ||= {})
+      headers.merge!(
         :format_version => FORMAT_VERSION.to_s,
         :flags => flags.to_s,
         :expires_at => expires_at.to_s
-      }
+      )
       opts
     end
+
+    # the routing key
+    def routing_key
+      header.routing_key
+    end
+    alias_method :key, :routing_key
 
     # unique message id. used to form various keys in the deduplication store.
     def msg_id
@@ -122,7 +129,7 @@ module Beetle
 
     # generate uuid for publishing
     def self.generate_uuid
-      UUID4R::uuid(1)
+      UUID4R::uuid(4)
     end
 
     # whether the publisher has tried sending this message to two servers
@@ -286,6 +293,7 @@ module Beetle
       Timer.timeout(@timeout.to_f) { @handler_result = handler.call(self) }
       RC::OK
     rescue Exception => @exception
+      ActiveRecord::Base.clear_all_connections! if defined?(ActiveRecord)
       Beetle::reraise_expectation_errors!
       logger.debug "Beetle: message handler crashed on #{msg_id}"
       RC::HandlerCrash

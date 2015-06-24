@@ -21,21 +21,11 @@ Gem::Specification.new do |s|
   s.rubygems_version   = "1.3.7"
   s.test_files         = Dir['test/**/*.rb']
 
-  s.post_install_message = <<-INFO
-  *********************************************************************************************
-
-    Please install the SystemTimer gem if you're running a ruby version < 1.9:
-    `gem install SystemTimer -v '=1.2.1'`
-    See: http://ph7spot.com/musings/system-timer
-
-  *********************************************************************************************
-  INFO
-
   s.specification_version = 3
   s.add_runtime_dependency("uuid4r",                  [">= 0.1.2"])
   s.add_runtime_dependency("bunny",                   ["= 0.7.9"])
-  s.add_runtime_dependency("redis",                   [">= 2.2.2", "< 3.1"])
-  s.add_runtime_dependency("hiredis",                 ["= 0.4.5"])
+  s.add_runtime_dependency("redis",                   [">= 2.2.2", "< 3.2"])
+  s.add_runtime_dependency("hiredis",                 [">= 0.4.5", "< 0.6"])
   s.add_runtime_dependency("amq-client",              ["= 1.0.2"])
   s.add_runtime_dependency("amq-protocol",            ["= 1.6.0"])
   s.add_runtime_dependency("amqp",                    ["= 1.0.2"])

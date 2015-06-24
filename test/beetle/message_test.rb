@@ -3,7 +3,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../test_helper')
 
 module Beetle
 
-  class EncodingTest < Test::Unit::TestCase
+  class EncodingTest < MiniTest::Unit::TestCase
     test "an exception during decoding should be stored in the exception attribute" do
       header = stub_everything("raising header")
       m = Message.new("queue", header, 'foo')
@@ -64,12 +64,26 @@ module Beetle
 
     test "the publishing options must only include string values" do
       options = Message.publishing_options(:redundant => true, :mandatory => true, :bogus => true)
+
       assert options[:headers].all? {|_, param| param.is_a?(String)}
     end
 
+    test "the publishing options support adding custom headers" do
+      options = Message.publishing_options(
+        :redundant => true,
+        :headers => {
+          :sender_id => "SENDER_ID",
+          :sender_action => "SENDER_ACTION"
+        }
+      )
+
+      assert_equal "1", options[:headers][:flags]
+      assert_equal "SENDER_ID", options[:headers][:sender_id]
+      assert_equal "SENDER_ACTION", options[:headers][:sender_action]
+    end
   end
 
-  class KeyManagementTest < Test::Unit::TestCase
+  class KeyManagementTest < MiniTest::Unit::TestCase
     def setup
       @store = DeduplicationStore.new
       @store.flushdb
@@ -84,33 +98,33 @@ module Beetle
     end
 
     test "should be able to garbage collect expired keys" do
-      Beetle.config.expects(:gc_threshold).returns(0)
+      Beetle.config.expects(:gc_threshold).returns(10)
       header = header_with_params({:ttl => 0})
       message = Message.new("somequeue", header, 'foo', :store => @store)
       assert !message.key_exists?
       assert message.key_exists?
       @store.redis.expects(:del).with(*@store.keys(message.msg_id))
-      @store.garbage_collect_keys(Time.now.to_i+1)
+      @store.garbage_collect_keys(Time.now.to_i+11)
     end
 
     test "should be able to garbage collect expired keys using master and slave" do
-      Beetle.config.expects(:gc_threshold).returns(0)
+      Beetle.config.expects(:gc_threshold).returns(10)
       header = header_with_params({:ttl => 0})
       message = Message.new("somequeue", header, 'foo', :store => @store)
       assert !message.key_exists?
       assert message.key_exists?
       @store.redis.expects(:del).with(*@store.keys(message.msg_id))
-      @store.garbage_collect_keys_using_master_and_slave(Time.now.to_i+1)
+      @store.garbage_collect_keys_using_master_and_slave(Time.now.to_i+11)
     end
 
     test "should not garbage collect not yet expired keys" do
-      Beetle.config.expects(:gc_threshold).returns(0)
+      Beetle.config.expects(:gc_threshold).returns(10)
       header = header_with_params({:ttl => 0})
       message = Message.new("somequeue", header, 'foo', :store => @store)
       assert !message.key_exists?
       assert message.key_exists?
       @store.redis.expects(:del).never
-      @store.garbage_collect_keys(Time.now.to_i-1)
+      @store.garbage_collect_keys(Time.now.to_i)
     end
 
     test "successful processing of a non redundant message should delete all keys from the database" do
@@ -164,7 +178,7 @@ module Beetle
     end
   end
 
-  class AckingTest < Test::Unit::TestCase
+  class AckingTest < MiniTest::Unit::TestCase
 
     def setup
       @store = DeduplicationStore.new
@@ -238,7 +252,7 @@ module Beetle
 
   end
 
-  class FreshMessageTest < Test::Unit::TestCase
+  class FreshMessageTest < MiniTest::Unit::TestCase
     def setup
       @store = DeduplicationStore.new
       @store.flushdb
@@ -273,7 +287,7 @@ module Beetle
 
   end
 
-  class SimpleMessageTest < Test::Unit::TestCase
+  class SimpleMessageTest < MiniTest::Unit::TestCase
     def setup
       @store = DeduplicationStore.new
       @store.flushdb
@@ -307,7 +321,7 @@ module Beetle
 
   end
 
-  class HandlerCrashTest < Test::Unit::TestCase
+  class HandlerCrashTest < MiniTest::Unit::TestCase
     def setup
       @store = DeduplicationStore.new
       @store.flushdb
@@ -380,7 +394,7 @@ module Beetle
 
   end
 
-  class SeenMessageTest < Test::Unit::TestCase
+  class SeenMessageTest < MiniTest::Unit::TestCase
     def setup
       @store = DeduplicationStore.new
       @store.flushdb
@@ -526,7 +540,7 @@ module Beetle
 
   end
 
-  class ProcessingTest < Test::Unit::TestCase
+  class ProcessingTest < MiniTest::Unit::TestCase
     def setup
       @store = DeduplicationStore.new
       @store.flushdb
@@ -594,7 +608,7 @@ module Beetle
 
   end
 
-  class HandlerTimeoutTest < Test::Unit::TestCase
+  class HandlerTimeoutTest < MiniTest::Unit::TestCase
     def setup
       @store = DeduplicationStore.new
       @store.flushdb
@@ -622,7 +636,47 @@ module Beetle
 
   end
 
-  class SettingsTest < Test::Unit::TestCase
+  class MySQLFailoverTest < MiniTest::Unit::TestCase
+    require "active_record"
+
+    def setup
+      @store = DeduplicationStore.new
+      @store.flushdb
+
+      ActiveRecord::Base.establish_connection(
+        adapter:  "mysql2",
+        database: "beetle_test",
+        username: "root",
+        encoding: "utf8"
+      )
+    end
+
+    test "a handler that drops a MySQL query ensures the connection still works" do
+      header = header_with_params({})
+      header.expects(:ack)
+      message = Message.new("somequeue", header, "foo", :timeout => 1.second, :attempts => 2, :store => @store)
+      action = lambda do |*args|
+        # the timeout should stop the query before it finishes.
+        ActiveRecord::Base.connection.execute("select sleep(6);")
+      end
+      handler = Handler.create(action)
+      result = message.process(handler)
+      assert_equal RC::ExceptionsLimitReached, result
+
+      # second message should process without problems
+      second_header = header_with_params({})
+      second_header.expects(:ack)
+      second_message = Message.new("somequeue", second_header, "foo2", :timeout => 2.seconds, :attempts => 1, :store => @store)
+      second_action = lambda do |*args|
+        ActiveRecord::Base.connection.execute("select 1;")
+      end
+      second_handler = Handler.create(second_action)
+      second_result = second_message.process(second_handler)
+      assert_equal RC::OK, second_result
+    end
+  end
+
+  class SettingsTest < MiniTest::Unit::TestCase
     def setup
       @store = DeduplicationStore.new
       @store.flushdb
@@ -774,4 +828,14 @@ module Beetle
     end
   end
 
+
+  class RoutingKeyTest < MiniTest::Unit::TestCase
+    test "returns the routing key" do
+      header = header_with_params({})
+      header.stubs(:routing_key).returns("foo")
+      message = Message.new("somequeue", header, "")
+      assert_equal "foo", message.routing_key
+      assert_equal "foo", message.key # alias
+    end
+  end
 end
