@@ -37,8 +37,12 @@ class Handler < Beetle::Handler
 
   # called when the handler receives the message - fail everytime
   def process
+    logger.info "received message with routing key: #{message.routing_key}"
     death = message.header.attributes[:headers]["x-death"]
-    puts death.map(&:inspect).join("\n") if death
+    if death
+      logger.info "X-DEATH: died #{death.size} times"
+      death.each {|d| logger.debug d}
+    end
     raise "failed #{$exceptions += 1} times"
   end
 
@@ -51,6 +55,9 @@ class Handler < Beetle::Handler
   # we're stopping the event loop so this script stops after that
   def failure(result)
     super
+    if $exceptions == $max_exceptions + 1
+      logger.info "this is expected behavior, all is fine!"
+    end
     EM.add_timer(1){$client.stop_listening}
   end
 end

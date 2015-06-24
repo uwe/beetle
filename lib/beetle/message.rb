@@ -52,6 +52,9 @@ module Beetle
     attr_reader :exception
     # value returned by handler execution
     attr_reader :handler_result
+    # original routing key (note that due to our requeuing
+    # implementation we have to extract it from the x-death header)
+    attr_reader :routing_key
 
     def initialize(queue, header, body, opts = {})
       @queue  = queue
@@ -69,6 +72,11 @@ module Beetle
       @exceptions_limit = opts[:exceptions] || DEFAULT_EXCEPTION_LIMIT
       @attempts_limit   = @exceptions_limit + 1 if @attempts_limit <= @exceptions_limit
       @store            = opts[:store]
+      @routing_key      = if x_death = @header.attributes[:headers]["x-death"]
+                            x_death.last["routing-keys"].first
+                          else
+                            @header.routing_key
+                          end
     end
 
     # extracts various values form the AMQP header properties
