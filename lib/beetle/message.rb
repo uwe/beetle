@@ -172,8 +172,8 @@ module Beetle
 
     # mark message handling complete in the deduplication store
     def completed!
-      @store.set(msg_id, :status, "completed")
       timed_out!
+      @store.set(msg_id, :status, "completed")
     end
 
     # whether we should wait before running the handler
