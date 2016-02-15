@@ -148,7 +148,7 @@ module Beetle
 
     # retrieve the values with given <tt>suffixes</tt> for given <tt>msg_id</tt>. returns a list of strings.
     def mget(msg_id, keys)
-      keys = keys.map{|suffix| key(msg_id, sufftix)}
+      keys = keys.map{|suffix| key(msg_id, suffix)}
       with_failover { redis.mget(*keys) }
     end
 
